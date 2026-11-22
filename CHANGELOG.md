@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.2.4 — audio, presentation limits, controller selection and Linux packaging (work branch)
+
+- Added an in-tree 32768 Hz stereo APU synthesizer for square-wave channels 1/2, wave channel 3 and noise channel 4, with basic envelope levels and NR50/NR51 mixing.
+- Connected the Windows frontend to WaveOut PCM playback. Added buffered audio submission and shutdown handling.
+- Added portable `--audio-wav` export to the headless application for generated 16-bit stereo PCM.
+- Added launcher presentation-rate choices: 40, 60, 120, 144, 165, 240, 360 FPS and Uncapped. The Game Boy CPU/PPU scheduler remains at its native frame cadence, so higher limits do not overclock gameplay.
+- Added XInput selection for Auto-detect or one of XInput slots 1–4; selection is stored in `config/settings.ini`.
+- Added `compile.sh` and AppImage packaging metadata for the Linux x86_64 headless frontend. The build expects the official `linuxdeploy` and `appimagetool` utilities and does not include ROMs.
+- Added an APU sample-generation regression test.
+
+**Work-branch verification status:** source changes have been committed, but the v0.2.4 Windows/MSVC build, Linux/AppImage build and full CTest run have not yet been executed in this environment. Do not treat this work branch as a tested release. Audio sweep, analog filtering and hardware-accurate APU timing remain incomplete.
+
 ## v0.2.3 — Joypad input fix
 
 - Corrected the P1/JOYP row-select mapping: bit 5 selects A/B/Select/Start; bit 4 selects Right/Left/Up/Down. The previous implementation had these selections reversed, so Oracle games polling one row at a time read the wrong host buttons.
