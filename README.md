@@ -57,7 +57,7 @@ The app opens a pre-game launcher. Before starting, choose:
 - **Graphics adapter:** Automatic or one of the detected DXGI hardware adapters. Use Refresh to re-enumerate GPUs.
 - **Display ratio:** 4:3 or 16:9 widescreen. The 160×144 game image is kept in its correct proportions inside the selected display canvas.
 - **Window mode:** Windowed or borderless fullscreen.
-- **Frame limit:** 40, 60, 120, 144, 165, 240, 360 FPS, or Uncapped. This limits presentation and does not change Game Boy CPU/PPU timing.
+- **Frame limit:** 40, 50, 60, 72, 75, 90, 100, 120, 144, 165, 180, 200, 240, 300, 360, 480, 600 FPS, or Uncapped. This limits presentation and does not change Game Boy CPU/PPU timing.
 - **XInput controller:** Auto-detect the first connected controller or select XInput slots 1–4.
 - **Keyboard bindings:** Click any binding button, then press the replacement key. If the key is already assigned to another action, the two bindings are swapped to avoid duplicates. Escape cancels a pending rebind.
 
@@ -193,6 +193,10 @@ This version is a real live rendering implementation, but the following work rem
 - ZIP/archive integrity is checked when creating the release archive.
 
 These checks verify the independently implemented execution/rendering pipeline. They do not establish retail-ROM boot compatibility or full gameplay. No Windows D3D11 test result is claimed in this Linux environment.
+
+## v0.2.4 work-branch verification
+
+The GitHub Actions Linux CI run for this branch built the portable compiler and all five test executables, then passed all five CTest tests. It also generated the source archive. This verifies the portable compiler/runtime tests and archive packaging only; it does **not** verify a Windows/MSVC GUI build, WaveOut device playback, the Linux AppImage packaging step, or boot compatibility with the two retail ROMs. Those still need local build and cartridge validation.
 
 ## Independence and game-data policy
 
