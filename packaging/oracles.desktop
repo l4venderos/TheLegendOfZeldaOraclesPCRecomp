@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Oracles PC Recomp
+Comment=Portable Oracle of Ages and Oracle of Seasons native recompilation
+Exec=Oracles
+Icon=oracles
+Terminal=true
+Categories=Game;Emulator;

@@ -15,6 +15,7 @@
 #include "oracles/d3d11_renderer.hpp"
 #include "oracles/game_runner.hpp"
 #include "oracles/input_bindings.hpp"
+#include "oracles/waveout_audio.hpp"
 
 #pragma comment(lib, "xinput9_1_0.lib")
 #pragma comment(lib, "dxgi.lib")
@@ -35,6 +36,8 @@ constexpr int ID_REFRESH_GPUS = 1003;
 constexpr int ID_ASPECT = 1004;
 constexpr int ID_WINDOW_MODE = 1005;
 constexpr int ID_LAUNCH = 1006;
+constexpr int ID_FPS = 1007;
+constexpr int ID_CONTROLLER = 1008;
 constexpr int ID_BIND_BASE = 1100;
 constexpr wchar_t kAutomaticGpu[] = L"Automatic (Windows default adapter)";
 constexpr std::array<const wchar_t*, 8> kActionNames{
@@ -57,6 +60,8 @@ struct AppState {
     HWND gpu_combo{};
     HWND aspect_combo{};
     HWND window_mode_combo{};
+    HWND fps_combo{};
+    HWND controller_combo{};
     HWND launch_button{};
     HWND refresh_button{};
     std::vector<GpuChoice> gpus;
@@ -66,6 +71,13 @@ struct AppState {
     std::uint8_t joypad_pressed{};
     XINPUT_STATE controller{};
     bool controller_connected{};
+    int selected_controller{-1}; // -1 = first connected XInput slot
+    int fps_limit{60};           // 0 = uncapped presentation (native game timing remains fixed)
+    double next_simulation_time{};
+    double next_present_time{};
+    bool frame_pending{};
+    bool timer_resolution_active{};
+    oracles::WaveOutAudio audio_output;
 
     bool widescreen{};
     bool fullscreen{};
@@ -80,6 +92,17 @@ struct AppState {
     std::wstring active_game;
     std::wstring renderer_status;
 } g;
+
+double monotonic_seconds() {
+    static const double frequency = [] {
+        LARGE_INTEGER value{};
+        QueryPerformanceFrequency(&value);
+        return static_cast<double>(value.QuadPart);
+    }();
+    LARGE_INTEGER counter{};
+    QueryPerformanceCounter(&counter);
+    return frequency > 0.0 ? static_cast<double>(counter.QuadPart) / frequency : 0.0;
+}
 
 std::filesystem::path executable_directory() {
     wchar_t buffer[32768]{};
@@ -211,7 +234,15 @@ void poll_controller() {
     }
     g.joypad_pressed = oracles::input::joypad_mask_from_actions(g.key_down);
     XINPUT_STATE state{};
-    g.controller_connected = XInputGetState(0, &state) == ERROR_SUCCESS;
+    g.controller_connected = false;
+    const int first_slot = g.selected_controller >= 0 ? g.selected_controller : 0;
+    const int last_slot = g.selected_controller >= 0 ? g.selected_controller + 1 : XUSER_MAX_COUNT;
+    for (int slot = first_slot; slot < last_slot; ++slot) {
+        if (XInputGetState(static_cast<DWORD>(slot), &state) == ERROR_SUCCESS) {
+            g.controller_connected = true;
+            break;
+        }
+    }
     if (!g.controller_connected) return;
 
     g.controller = state;
@@ -334,6 +365,35 @@ void create_launcher_controls(HWND hwnd) {
     g.fullscreen = read_setting(L"Display", L"WindowMode", L"Windowed") == L"Fullscreen";
     SendMessageW(g.window_mode_combo, CB_SETCURSEL, g.fullscreen ? 1 : 0, 0);
 
+    add_control(hwnd, L"STATIC", L"Frame limit:", 0, 48, 254, 120, 28);
+    g.fps_combo = add_control(hwnd, L"COMBOBOX", L"",
+        CBS_DROPDOWNLIST | WS_TABSTOP, 174, 248, 280, 210, ID_FPS);
+    constexpr std::array<int, 18> fps_choices{40, 50, 60, 72, 75, 90, 100, 120, 144, 165, 180, 200, 240, 300, 360, 480, 600, 0};
+    const auto saved_fps = read_setting(L"Display", L"FPS", L"60");
+    int fps_index = 2;
+    for (std::size_t i = 0; i < fps_choices.size(); ++i) {
+        const std::wstring label = fps_choices[i] == 0
+            ? L"Uncapped" : std::to_wstring(fps_choices[i]) + L" FPS";
+        SendMessageW(g.fps_combo, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(label.c_str()));
+        if ((fps_choices[i] == 0 && saved_fps == L"Uncapped") ||
+            (fps_choices[i] != 0 && saved_fps == std::to_wstring(fps_choices[i])))
+            fps_index = static_cast<int>(i);
+    }
+    SendMessageW(g.fps_combo, CB_SETCURSEL, fps_index, 0);
+
+    add_control(hwnd, L"STATIC", L"XInput controller:", 0, 488, 254, 110, 28);
+    g.controller_combo = add_control(hwnd, L"COMBOBOX", L"",
+        CBS_DROPDOWNLIST | WS_TABSTOP, 600, 248, 302, 210, ID_CONTROLLER);
+    SendMessageW(g.controller_combo, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"Auto-detect (first connected)"));
+    for (int slot = 0; slot < XUSER_MAX_COUNT; ++slot) {
+        const std::wstring label = L"XInput Controller " + std::to_wstring(slot + 1);
+        SendMessageW(g.controller_combo, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(label.c_str()));
+    }
+    const auto saved_controller = read_setting(L"Input", L"XInputController", L"-1");
+    try { g.selected_controller = std::clamp(std::stoi(saved_controller), -1, XUSER_MAX_COUNT - 1); }
+    catch (...) { g.selected_controller = -1; }
+    SendMessageW(g.controller_combo, CB_SETCURSEL, g.selected_controller + 1, 0);
+
     add_control(hwnd, L"STATIC", L"KEYBOARD BINDINGS  -  Click a button, then press the replacement key",
         0, 48, 286, 850, 28);
 
@@ -392,6 +452,14 @@ void save_launcher_settings() {
     const LRESULT gpu = SendMessageW(g.gpu_combo, CB_GETCURSEL, 0, 0);
     const LRESULT aspect = SendMessageW(g.aspect_combo, CB_GETCURSEL, 0, 0);
     const LRESULT window_mode = SendMessageW(g.window_mode_combo, CB_GETCURSEL, 0, 0);
+    const LRESULT fps = SendMessageW(g.fps_combo, CB_GETCURSEL, 0, 0);
+    const LRESULT controller = SendMessageW(g.controller_combo, CB_GETCURSEL, 0, 0);
+
+    constexpr std::array<int, 8> fps_choices{40, 60, 120, 144, 165, 240, 360, 0};
+    const int fps_index = fps == CB_ERR ? 2 : std::clamp(static_cast<int>(fps), 0, 17);
+    g.fps_limit = fps_choices[static_cast<std::size_t>(fps_index)];
+    g.selected_controller = controller == CB_ERR ? -1 :
+        std::clamp(static_cast<int>(controller) - 1, -1, XUSER_MAX_COUNT - 1);
 
     g.selected_game = game == 1 ? 1 : 0;
     g.selected_gpu_combo_index = gpu == CB_ERR ? 0 : static_cast<int>(gpu);
@@ -401,6 +469,8 @@ void save_launcher_settings() {
     write_setting(L"Game", L"Selection", g.selected_game == 1 ? L"Seasons" : L"Ages");
     write_setting(L"Display", L"Aspect", g.widescreen ? L"Widescreen" : L"4:3");
     write_setting(L"Display", L"WindowMode", g.fullscreen ? L"Fullscreen" : L"Windowed");
+    write_setting(L"Display", L"FPS", g.fps_limit == 0 ? L"Uncapped" : std::to_wstring(g.fps_limit));
+    write_setting(L"Input", L"XInputController", std::to_wstring(g.selected_controller));
     if (g.selected_gpu_combo_index <= 0 ||
         static_cast<std::size_t>(g.selected_gpu_combo_index - 1) >= g.gpus.size()) {
         write_setting(L"Display", L"GPU", kAutomaticGpu);
@@ -468,6 +538,8 @@ void run_game_to_frame() {
         g.runner->stop();
         return;
     }
+    const auto audio_samples = g.runner->runtime().take_audio_samples();
+    g.audio_output.submit(audio_samples);
     if (result == oracles::FrameRunStatus::FrameReady && g.renderer) {
         std::wstring upload_error;
         const auto& pixels = g.runner->runtime().ppu.framebuffer();
@@ -476,6 +548,8 @@ void run_game_to_frame() {
             SetWindowTextW(g.game_window,
                 (L"Oracles PC Recomp - framebuffer upload failed: " + upload_error).c_str());
             g.runner->stop();
+        } else {
+            g.frame_pending = true;
         }
     }
 }
@@ -684,7 +758,11 @@ LRESULT CALLBACK game_proc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam
             g.runner.reset();
             return -1;
         }
-        SetTimer(hwnd, 1, 16, nullptr);
+        g.audio_output.initialize();
+        g.next_simulation_time = monotonic_seconds() + (1.0 / 59.7275);
+        g.next_present_time = monotonic_seconds();
+        g.timer_resolution_active = (timeBeginPeriod(1) == TIMERR_NOERROR);
+        SetTimer(hwnd, 1, 1, nullptr);
         return 0;
 
     case WM_SIZE:
@@ -729,17 +807,34 @@ LRESULT CALLBACK game_proc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam
         clear_keyboard_state();
         return 0;
 
-    case WM_TIMER:
+    case WM_TIMER: {
         poll_controller();
-        run_game_to_frame();
-        if (g.renderer) {
+        const double now = monotonic_seconds();
+
+        // Advance the emulated cartridge at its native ~59.7275 Hz frame
+        // cadence, independently of the selected presentation limit. A
+        // 120/240 FPS setting never accelerates the Game Boy CPU or PPU.
+        if (now >= g.next_simulation_time) {
+            g.next_simulation_time += 1.0 / 59.7275;
+            if (now - g.next_simulation_time > 0.25)
+                g.next_simulation_time = now + (1.0 / 59.7275);
+            run_game_to_frame();
+        }
+
+        const double present_interval = g.fps_limit > 0
+            ? 1.0 / static_cast<double>(g.fps_limit) : 0.0;
+        if (g.frame_pending && now >= g.next_present_time && g.renderer) {
             std::wstring error;
             if (!g.renderer->render(error)) {
                 SetWindowTextW(hwnd, (L"Oracles PC Recomp - renderer error: " + error).c_str());
                 g.renderer.reset();
+            } else {
+                g.frame_pending = false;
+                g.next_present_time = present_interval > 0.0 ? now + present_interval : now;
             }
         }
         return 0;
+    }
 
     case WM_ERASEBKGND:
         return 1;
@@ -757,6 +852,11 @@ LRESULT CALLBACK game_proc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam
 
     case WM_DESTROY:
         KillTimer(hwnd, 1);
+        if (g.timer_resolution_active) {
+            timeEndPeriod(1);
+            g.timer_resolution_active = false;
+        }
+        g.audio_output.shutdown();
         clear_keyboard_state();
         g.runner.reset();
         g.renderer.reset();

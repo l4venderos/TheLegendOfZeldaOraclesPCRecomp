@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include "oracles/ppu.hpp"
+#include "oracles/audio.hpp"
 
 namespace oracles {
 struct CpuState {
@@ -70,6 +71,7 @@ private:
     std::array<std::uint16_t, 4> apu_length_counters_{};
     std::uint8_t apu_active_channels_{};
     bool apu_powered_{true};
+    AudioSynthesizer audio_;
     std::uint16_t hdma_source_{};
     std::uint16_t hdma_destination_{0x8000};
     std::uint8_t hdma_blocks_remaining_{};
@@ -90,6 +92,7 @@ private:
 public:
 
     bool load_rom(const std::filesystem::path& path, std::string& error);
+    std::vector<std::int16_t> take_audio_samples();
     void set_joypad_buttons(std::uint8_t pressed_mask);
     std::uint8_t read8(std::uint16_t address) const;
     void write8(std::uint16_t address, std::uint8_t value);
