@@ -1,2 +1,9 @@
-*.agdai
-**/MAlonzo/**
+/build-*/
+/build_generated/
+/dist/
+/GameData/*.gbc
+/GameData/*.gb
+*.user
+*.suo
+.vs/
+/config/settings.ini
