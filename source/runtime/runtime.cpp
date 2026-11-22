@@ -287,7 +287,7 @@ void Runtime::advance_cycles(std::uint32_t t_cycles) {
         const bool new_signal=timer_signal(divider_counter_,io[0x07]);
         if (old_signal && !new_signal) timer_increment();
         serial_tick();
-        audio_.tick_cpu_cycle(io_, apu_powered_, apu_active_channels_, double_speed);
+        audio_.tick_cpu_cycle(io, apu_powered_, apu_active_channels_, double_speed);
 
         if (apu_powered_) {
             const std::uint32_t apu_period = double_speed ? 16384u : 8192u;
