@@ -60,6 +60,7 @@ struct RuntimeFixtures {
     oracles::Runtime gdma;
     oracles::Runtime hdma;
     oracles::Runtime hdma_halt;
+    oracles::Runtime audio_output;
     oracles::GameRunner live_game;
 };
 
@@ -453,6 +454,23 @@ int main() {
     hdma_halt.advance_cycles(456); // Next visible line's HBlank.
     assert(hdma_halt.read8(0xFF55)==0xFF);
     assert(hdma_halt.vram[0x40]==0xA5);
+
+
+    // Native APU output: one stereo sample is emitted per 128 normal-speed
+    // CPU T-cycles. A triggered square-wave channel must produce audible data.
+    auto& audio_output = fixtures->audio_output;
+    setup_cgb(audio_output);
+    audio_output.write8(0xFF24, 0x77); // NR50: enable both stereo output gains.
+    audio_output.write8(0xFF25, 0x11); // NR51: route channel 1 to left and right.
+    audio_output.write8(0xFF12, 0xF0); // NR12: DAC on, initial volume 15.
+    audio_output.write8(0xFF11, 0x80); // NR11: 50% duty, length.
+    audio_output.write8(0xFF13, 0x00);
+    audio_output.write8(0xFF14, 0x84); // NR14: trigger, frequency 1024.
+    audio_output.advance_cycles(128u * 64u);
+    const auto pcm = audio_output.take_audio_samples();
+    assert(pcm.size() == 128u); // 64 interleaved stereo sample frames.
+    assert(std::any_of(pcm.begin(), pcm.end(), [](std::int16_t value) { return value != 0; }));
+    assert(audio_output.take_audio_samples().empty());
 
     std::cout << "NR52 APU status, CGB GDMA and HBlank DMA tests passed.\n";
 
