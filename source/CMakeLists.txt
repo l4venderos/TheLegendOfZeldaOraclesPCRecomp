@@ -70,10 +70,10 @@ set(SEASONS_NATIVE "" CACHE FILEPATH "Generated Oracle of Seasons native blocks"
 
 if(ORACLES_BUILD_GAME)
     if(NOT EXISTS "${AGES_NATIVE}")
-        message(FATAL_ERROR "AGES_NATIVE does not exist. Run compile.bat so the independent recompiler can generate it.")
+        message(FATAL_ERROR "AGES_NATIVE does not exist. Run compile.bat (Windows) or compile.sh (Linux) so the independent recompiler can generate it.")
     endif()
     if(NOT EXISTS "${SEASONS_NATIVE}")
-        message(FATAL_ERROR "SEASONS_NATIVE does not exist. Run compile.bat so the independent recompiler can generate it.")
+        message(FATAL_ERROR "SEASONS_NATIVE does not exist. Run compile.bat (Windows) or compile.sh (Linux) so the independent recompiler can generate it.")
     endif()
 
     if(WIN32)
