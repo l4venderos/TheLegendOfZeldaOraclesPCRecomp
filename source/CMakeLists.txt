@@ -64,6 +64,20 @@ add_custom_target(oracles-test-binaries
         oracles-emitter-regression
 )
 
+# Compile-check the Windows WaveOut backend even when no ROMs are available.
+# This catches Windows SDK include-order and API declaration regressions in CI.
+if(WIN32)
+    add_library(oracles-waveout-audio-compile-check OBJECT
+        platform/waveout_audio.cpp
+    )
+    target_include_directories(oracles-waveout-audio-compile-check PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_compile_definitions(oracles-waveout-audio-compile-check PRIVATE
+        WIN32_LEAN_AND_MEAN NOMINMAX WINVER=0x0A00 _WIN32_WINNT=0x0A00
+    )
+endif()
+
 option(ORACLES_BUILD_GAME "Build the combined Oracle of Ages/Seasons native executable" OFF)
 set(AGES_NATIVE "" CACHE FILEPATH "Generated Oracle of Ages native blocks")
 set(SEASONS_NATIVE "" CACHE FILEPATH "Generated Oracle of Seasons native blocks")
