@@ -1,0 +1,19 @@
+name: v0.2.4 Windows SDK compile check
+
+on:
+  push:
+    branches:
+      - v0.2.4-work
+  workflow_dispatch:
+
+jobs:
+  windows-compile:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure Windows x64 build
+        run: cmake -S source -B build -A x64
+      - name: Compile WaveOut backend and portable regression tests
+        run: cmake --build build --config Release --target oracles-waveout-audio-compile-check oracles-test-binaries --parallel 2
+      - name: Run portable regression tests
+        run: ctest --test-dir build -C Release --output-on-failure
