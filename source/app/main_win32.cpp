@@ -76,6 +76,7 @@ struct AppState {
     double next_simulation_time{};
     double next_present_time{};
     bool frame_pending{};
+    bool timer_resolution_active{};
     oracles::WaveOutAudio audio_output;
 
     bool widescreen{};
@@ -367,9 +368,9 @@ void create_launcher_controls(HWND hwnd) {
     add_control(hwnd, L"STATIC", L"Frame limit:", 0, 48, 254, 120, 28);
     g.fps_combo = add_control(hwnd, L"COMBOBOX", L"",
         CBS_DROPDOWNLIST | WS_TABSTOP, 174, 248, 280, 210, ID_FPS);
-    constexpr std::array<int, 8> fps_choices{40, 60, 120, 144, 165, 240, 360, 0};
+    constexpr std::array<int, 18> fps_choices{40, 50, 60, 72, 75, 90, 100, 120, 144, 165, 180, 200, 240, 300, 360, 480, 600, 0};
     const auto saved_fps = read_setting(L"Display", L"FPS", L"60");
-    int fps_index = 1;
+    int fps_index = 2;
     for (std::size_t i = 0; i < fps_choices.size(); ++i) {
         const std::wstring label = fps_choices[i] == 0
             ? L"Uncapped" : std::to_wstring(fps_choices[i]) + L" FPS";
@@ -455,7 +456,7 @@ void save_launcher_settings() {
     const LRESULT controller = SendMessageW(g.controller_combo, CB_GETCURSEL, 0, 0);
 
     constexpr std::array<int, 8> fps_choices{40, 60, 120, 144, 165, 240, 360, 0};
-    const int fps_index = fps == CB_ERR ? 1 : std::clamp(static_cast<int>(fps), 0, 7);
+    const int fps_index = fps == CB_ERR ? 2 : std::clamp(static_cast<int>(fps), 0, 17);
     g.fps_limit = fps_choices[static_cast<std::size_t>(fps_index)];
     g.selected_controller = controller == CB_ERR ? -1 :
         std::clamp(static_cast<int>(controller) - 1, -1, XUSER_MAX_COUNT - 1);
@@ -760,7 +761,7 @@ LRESULT CALLBACK game_proc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam
         g.audio_output.initialize();
         g.next_simulation_time = monotonic_seconds() + (1.0 / 59.7275);
         g.next_present_time = monotonic_seconds();
-        timeBeginPeriod(1);
+        g.timer_resolution_active = (timeBeginPeriod(1) == TIMERR_NOERROR);
         SetTimer(hwnd, 1, 1, nullptr);
         return 0;
 
@@ -851,7 +852,10 @@ LRESULT CALLBACK game_proc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam
 
     case WM_DESTROY:
         KillTimer(hwnd, 1);
-        timeEndPeriod(1);
+        if (g.timer_resolution_active) {
+            timeEndPeriod(1);
+            g.timer_resolution_active = false;
+        }
         g.audio_output.shutdown();
         clear_keyboard_state();
         g.runner.reset();
