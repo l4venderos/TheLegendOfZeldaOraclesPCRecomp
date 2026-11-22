@@ -64,6 +64,9 @@ ARCH=x86_64 "$LINUXDEPLOY" --appdir "$APPDIR" \
   --executable "$APPDIR/usr/bin/Oracles" \
   --desktop-file "$ROOT/packaging/oracles.desktop" \
   --icon-file "$ROOT/packaging/oracles.svg"
+rm -f "$APPDIR/AppRun"
+cp "$ROOT/packaging/AppRun" "$APPDIR/AppRun"
+chmod +x "$APPDIR/AppRun"
 ARCH=x86_64 "$APPIMAGETOOL" "$APPDIR" "$DIST/Oracles-PC-Recomp-v0.2.4-x86_64.AppImage"
 chmod +x "$DIST/Oracles-PC-Recomp-v0.2.4-x86_64.AppImage"
 
