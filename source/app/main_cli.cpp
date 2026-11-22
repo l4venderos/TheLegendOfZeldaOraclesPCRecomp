@@ -1,5 +1,6 @@
 #include "oracles/game_runner.hpp"
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
