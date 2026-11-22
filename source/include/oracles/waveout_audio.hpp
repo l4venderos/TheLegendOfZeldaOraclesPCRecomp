@@ -2,6 +2,7 @@
 
 #ifdef _WIN32
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <vector>
 #include <mmsystem.h>
