@@ -5,12 +5,12 @@
 - Added an in-tree 32768 Hz stereo APU synthesizer for square-wave channels 1/2, wave channel 3 and noise channel 4, with basic envelope levels and NR50/NR51 mixing.
 - Connected the Windows frontend to WaveOut PCM playback. Added buffered audio submission and shutdown handling.
 - Added portable `--audio-wav` export to the headless application for generated 16-bit stereo PCM.
-- Added launcher presentation-rate choices: 40, 60, 120, 144, 165, 240, 360 FPS and Uncapped. The Game Boy CPU/PPU scheduler remains at its native frame cadence, so higher limits do not overclock gameplay.
+- Added launcher presentation-rate choices: 40, 50, 60, 72, 75, 90, 100, 120, 144, 165, 180, 200, 240, 300, 360, 480, 600 FPS and Uncapped. The Game Boy CPU/PPU scheduler remains at its native frame cadence, so higher limits do not overclock gameplay.
 - Added XInput selection for Auto-detect or one of XInput slots 1–4; selection is stored in `config/settings.ini`.
 - Added `compile.sh` and AppImage packaging metadata for the Linux x86_64 headless frontend. The build expects the official `linuxdeploy` and `appimagetool` utilities and does not include ROMs.
 - Added an APU sample-generation regression test.
 
-**Work-branch verification status:** source changes have been committed, but the v0.2.4 Windows/MSVC build, Linux/AppImage build and full CTest run have not yet been executed in this environment. Do not treat this work branch as a tested release. Audio sweep, analog filtering and hardware-accurate APU timing remain incomplete.
+**Work-branch verification status:** GitHub Actions on Ubuntu 26.04 with GCC 15.2 and CMake 4.2.3 built the portable test binaries and passed all five CTest tests. The source ZIP was also generated. Windows/MSVC GUI compilation, WaveOut playback, AppImage packaging, and retail-ROM boot compatibility have not been tested. Audio sweep, analog filtering and hardware-accurate APU timing remain incomplete.
 
 ## v0.2.3 — Joypad input fix
 
