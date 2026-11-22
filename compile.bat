@@ -16,7 +16,7 @@ set "VSWHERE="
 set "VSROOT="
 
 echo ================================================================
-echo  ORACLES PC RECOMP v0.2.3 - INDEPENDENT STATIC RECOMPILER BUILD
+echo  ORACLES PC RECOMP v0.2.4 - INDEPENDENT STATIC RECOMPILER BUILD
 echo ================================================================
 echo.
 
