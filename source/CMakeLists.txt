@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(OraclesPCRecomp VERSION 0.2.3 LANGUAGES CXX)
+project(OraclesPCRecomp VERSION 0.2.4 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -29,7 +29,7 @@ add_executable(oracles-input-bindings-tests tests/input_bindings_tests.cpp)
 target_include_directories(oracles-input-bindings-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 add_test(NAME keyboard-bindings COMMAND oracles-input-bindings-tests)
 
-add_executable(oracles-runtime-tests tests/runtime_tests.cpp runtime/runtime.cpp runtime/game_runner.cpp ppu/ppu.cpp)
+add_executable(oracles-runtime-tests tests/runtime_tests.cpp runtime/runtime.cpp runtime/audio.cpp runtime/game_runner.cpp ppu/ppu.cpp)
 target_include_directories(oracles-runtime-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 add_test(NAME runtime-smoke COMMAND oracles-runtime-tests)
 
@@ -81,17 +81,20 @@ if(ORACLES_BUILD_GAME)
             app/main_win32.cpp
             renderer/d3d11_renderer.cpp
             runtime/runtime.cpp
+            runtime/audio.cpp
+            platform/waveout_audio.cpp
             runtime/game_runner.cpp
             ppu/ppu.cpp
             "${AGES_NATIVE}"
             "${SEASONS_NATIVE}"
         )
-        target_link_libraries(Oracles PRIVATE user32 gdi32 Xinput9_1_0 d3d11 dxgi d3dcompiler)
+        target_link_libraries(Oracles PRIVATE user32 gdi32 Xinput9_1_0 d3d11 dxgi d3dcompiler winmm)
         target_compile_definitions(Oracles PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX WINVER=0x0A00 _WIN32_WINNT=0x0A00)
     else()
         add_executable(Oracles
             app/main_cli.cpp
             runtime/runtime.cpp
+            runtime/audio.cpp
             runtime/game_runner.cpp
             ppu/ppu.cpp
             "${AGES_NATIVE}"
