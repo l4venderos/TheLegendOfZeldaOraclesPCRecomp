@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+APPDIR="${APPDIR:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)}"
+ARGS=("$@")
+HAS_DATA_DIR=0
+for ((i=0; i<${#ARGS[@]}; ++i)); do
+  if [[ "${ARGS[$i]}" == "--data-dir" ]]; then HAS_DATA_DIR=1; break; fi
+done
+if [[ "$HAS_DATA_DIR" -eq 0 ]]; then
+  DATA_DIR="$PWD/GameData"
+  if [[ ! -d "$DATA_DIR" && -n "${APPIMAGE:-}" ]]; then
+    DATA_DIR="$(dirname -- "$APPIMAGE")/GameData"
+  fi
+  ARGS+=(--data-dir "$DATA_DIR")
+fi
+exec "$APPDIR/usr/bin/Oracles" "${ARGS[@]}"
