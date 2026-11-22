@@ -1,0 +1,34 @@
+#pragma once
+
+#include <array>
+#include <cstdint>
+#include <vector>
+
+namespace oracles {
+
+// Native Game Boy APU sample synthesizer. Runtime clocks it from CPU T-cycles;
+// output is interleaved signed 16-bit stereo at 32768 Hz.
+class AudioSynthesizer {
+public:
+    static constexpr unsigned kSampleRate = 32768;
+
+    void reset() noexcept;
+    void tick_cpu_cycle(const std::array<std::uint8_t, 0x80>& io,
+                        bool powered, std::uint8_t active_channels,
+                        bool double_speed);
+    std::vector<std::int16_t> take_samples();
+
+private:
+    void synthesize(const std::array<std::uint8_t, 0x80>& io,
+                    bool powered, std::uint8_t active_channels);
+    std::uint32_t sample_clock_{};
+    std::array<double, 3> phase_{};
+    double noise_phase_{};
+    std::uint16_t noise_lfsr_{0x7FFF};
+    std::array<std::uint8_t, 3> envelope_volume_{};
+    std::array<std::uint16_t, 3> envelope_clock_{};
+    std::uint64_t samples_generated_{};
+    std::vector<std::int16_t> samples_;
+};
+
+} // namespace oracles
