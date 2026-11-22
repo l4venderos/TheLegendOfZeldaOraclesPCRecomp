@@ -31,6 +31,7 @@ bool Runtime::load_rom(const std::filesystem::path& path, std::string& error) {
     pending_stall_cycles_=0;
     apu_frame_seq_cycles_=0; apu_frame_seq_step_=0;
     apu_length_counters_.fill(0); apu_active_channels_=0; apu_powered_=true;
+    audio_.reset();
     hdma_source_=0; hdma_destination_=0x8000; hdma_blocks_remaining_=0;
     hdma_vram_bank_=0; hdma_active_=false;
     io[0x55]=0xFF;
@@ -286,6 +287,7 @@ void Runtime::advance_cycles(std::uint32_t t_cycles) {
         const bool new_signal=timer_signal(divider_counter_,io[0x07]);
         if (old_signal && !new_signal) timer_increment();
         serial_tick();
+        audio_.tick_cpu_cycle(io_, apu_powered_, apu_active_channels_, double_speed);
 
         if (apu_powered_) {
             const std::uint32_t apu_period = double_speed ? 16384u : 8192u;
@@ -312,6 +314,10 @@ void Runtime::advance_cycles(std::uint32_t t_cycles) {
         --cpu.ime_delay;
         if (!cpu.ime_delay) cpu.ime=true;
     }
+}
+
+std::vector<std::int16_t> Runtime::take_audio_samples() {
+    return audio_.take_samples();
 }
 
 void Runtime::write_apu_register(std::uint16_t address, std::uint8_t value) {
