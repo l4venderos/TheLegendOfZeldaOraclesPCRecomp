@@ -1,6 +1,6 @@
 # Oracles PC Recomp
 
-**Independent development project — v0.2.3**
+**Independent development project — v0.2.4 (work branch)**
 
 An independently authored C++ static-recompilation project for **The Legend of Zelda: Oracle of Ages** and **The Legend of Zelda: Oracle of Seasons**. It does not wrap another Oracle recompilation, include a third-party emulator library, or distribute commercial ROMs.
 
@@ -21,7 +21,9 @@ Oracles-PC-Recomp/
 │   └── CMakeLists.txt
 ├── GameData/                 # add your own Ages and Seasons ROMs here
 ├── docs/                     # research and architecture notes
-└── compile.bat                # Windows x64 build script
+├── compile.bat                # Windows x64 build script
+├── compile.sh                  # Linux build and AppImage script
+└── packaging/                  # AppImage desktop entry and icon
 ```
 
 ## Build and run on Windows
@@ -55,11 +57,13 @@ The app opens a pre-game launcher. Before starting, choose:
 - **Graphics adapter:** Automatic or one of the detected DXGI hardware adapters. Use Refresh to re-enumerate GPUs.
 - **Display ratio:** 4:3 or 16:9 widescreen. The 160×144 game image is kept in its correct proportions inside the selected display canvas.
 - **Window mode:** Windowed or borderless fullscreen.
+- **Frame limit:** 40, 60, 120, 144, 165, 240, 360 FPS, or Uncapped. This limits presentation and does not change Game Boy CPU/PPU timing.
+- **XInput controller:** Auto-detect the first connected controller or select XInput slots 1–4.
 - **Keyboard bindings:** Click any binding button, then press the replacement key. If the key is already assigned to another action, the two bindings are swapped to avoid duplicates. Escape cancels a pending rebind.
 
 Click **LAUNCH!** to initialize the cartridge and renderer. Once initialization succeeds, the launcher closes and the separate game window opens. The game window receives keyboard focus immediately; there is no need to click inside a viewport before playing. Settings are saved in `dist/config/settings.ini`.
 
-Keyboard input is sampled from the foreground game window using both Win32 key messages and the current virtual-key state. The Game Boy P1 register uses the correct active-low row selectors: bit 5 selects A/B/Select/Start and bit 4 selects the D-pad. Runtime tests cover both selected rows, unselected-row isolation, simultaneous selection and joypad-interrupt falling edges.
+Keyboard input is sampled from the foreground game window using both Win32 key messages and the current virtual-key state. The Game Boy P1 register uses the correct active-low row selectors: bit 5 selects A/B/Select/Start and bit 4 selects the D-pad. Runtime tests cover both selected rows, unselected-row isolation, simultaneous selection and joypad-interrupt falling edges. The selected XInput slot is polled independently of keyboard input and saved in launcher settings.
 
 Keyboard input is sampled from the foreground game window using both Win32 key messages and the current virtual-key state. The Game Boy P1 register uses the hardware row selects correctly: bit 5 selects action buttons and bit 4 selects the D-pad. The input test suite checks each selected row, verifies that an unselected row cannot leak into reads, and checks joypad-interrupt falling edges.
 
@@ -89,6 +93,26 @@ dist/
     └── settings.ini        # created by the frontend
 ```
 
+## Build on Linux and create an AppImage
+
+Requirements: CMake 3.20+, a C++20 compiler, and your own `GameData/OracleOfAges.gbc` and `GameData/OracleOfSeasons.gbc` files. AppImage packaging also requires the official `linuxdeploy` and `appimagetool` x86_64 AppImages. Download them from the AppImage projects, make both tools executable, and either put them on `PATH` or set `LINUXDEPLOY` and `APPIMAGETOOL` to their paths.
+
+Run:
+
+```bash
+bash compile.sh
+```
+
+The script builds the portable compiler, builds and runs CTest, generates native code from both supplied cartridges, builds `dist/Oracles`, and creates `dist/Oracles-PC-Recomp-v0.2.4-x86_64.AppImage`. The AppImage contains the application and bundled non-system dependencies, but **does not contain commercial ROMs**. Keep a `GameData/` folder beside the AppImage (or pass `--data-dir`).
+
+The current Linux target is the project's portable headless frontend, not the Windows graphical launcher. It writes PPM frames and can export audio:
+
+```bash
+./dist/Oracles-PC-Recomp-v0.2.4-x86_64.AppImage --game ages --frames 2 --data-dir GameData --output-dir frames --audio-wav ages.wav
+```
+
+Official packaging references: [linuxdeploy user guide](https://docs.appimage.org/packaging-guide/from-source/linuxdeploy-user-guide.html) and [appimagetool usage](https://github.com/AppImage/appimagetool).
+
 ## Live execution and rendering path
 
 The Windows frontend and portable integration test host use the same `GameRunner` implementation:
@@ -104,7 +128,7 @@ There is no synthetic diagnostic image in the gameplay path. The D3D11 texture i
 The portable `Oracles` target on non-Windows hosts uses the same `GameRunner` and generated native blocks, then writes actual PPU framebuffer images as PPM files. Example:
 
 ```text
-Oracles --game ages --frames 2 --data-dir GameData --output-dir frames
+Oracles --game ages --frames 2 --data-dir GameData --output-dir frames --audio-wav ages.wav
 ```
 
 This headless path is useful for inspecting rendered frames and debugging the CPU/PPU connection; the Windows GUI is the normal interactive build.
@@ -120,7 +144,7 @@ This headless path is useful for inspecting rendered frames and debugging the CP
 - Per-instruction deferred cycle advancement, including path-dependent conditional JR/JP/CALL/RET timing.
 - CPU interrupt dispatch, HALT/STOP handling, timer/divider behavior, CGB double-speed PPU clock scaling and serial-link behavior when no cable peer is attached.
 - CGB `FF51`–`FF55` VRAM DMA register handling: masked source/destination addresses, GDMA complete transfers, HBlank HDMA 16-byte blocks, VBK selection, transfer status/cancellation and CPU stall cycles.
-- Partial APU register model for `NR52` power/channel-on status and length-counter sequencing; this is not an audio synthesizer.
+- Four-channel APU sample synthesis for square, wave and noise output, with basic volume envelopes and NR50/NR51 stereo mixing. Windows sends PCM to WaveOut; the portable CLI can export sound to a stereo 16-bit WAV file.
 - Native block safe points for frame presentation and interrupt servicing.
 
 ### CGB/DMG PPU
@@ -135,7 +159,7 @@ This headless path is useful for inspecting rendered frames and debugging the CP
 ### Windows graphics and input
 
 - Separate Win32 pre-game launcher and gameplay window. The launcher offers Ages/Seasons selection, DXGI GPU selection and refresh, 4:3/16:9 output, windowed/borderless-fullscreen mode, editable keyboard bindings, and a Launch button that closes the launcher after game-window initialization succeeds.
-- Dedicated game-window keyboard input, configurable Win32 virtual-key bindings, left/right modifier-key normalization from scan-code data, focus-loss key-state clearing, and XInput controller polling.
+- Dedicated game-window keyboard input, configurable Win32 virtual-key bindings, left/right modifier-key normalization from scan-code data, focus-loss key-state clearing, and selectable XInput controller polling (Auto or slots 1–4). The launcher also offers frame-presentation limits from 40 FPS through 360 FPS or Uncapped.
 - DXGI adapter enumeration and explicit D3D11 device creation on the selected hardware adapter; Automatic delegates to Windows' default hardware adapter.
 - D3D11 texture upload, HLSL textured-quad renderer, point sampling, DXGI HWND swap chain and presentation.
 - 4:3 mode uses a centered 4:3 canvas while preserving the 160×144 native frame without distortion.
@@ -149,7 +173,7 @@ This version is a real live rendering implementation, but the following work rem
 2. **Static block discovery is conservative and incomplete.** Undiscovered and dynamic targets are interpreted by the in-tree SM83 fallback, but code executed from RAM and all unusual mapper/control-flow cases still need validation.
 3. **The PPU is scanline-oriented, not FIFO/dot-fetch exact.** It models 456-dot lines, 144 visible lines, VBlank, LCD modes and major Mode 3 penalties. Fine-grained fetcher/FIFO stalls, mid-scanline raster effects and some timing quirks are not cycle accurate.
 4. **DMA still needs hardware validation.** CGB GDMA and HBlank HDMA are implemented at the register/block level: GDMA copies all blocks and stalls the CPU; HDMA copies one 16-byte block at each visible HBlank and stalls the CPU for that block. Bus contention, mid-transfer bank changes, destination overflow and all edge cases are not cycle-accurate. OAM DMA (`FF46`) currently copies immediately rather than modelling its full timed bus behavior.
-5. **Audio output is not implemented.** The runtime models NR52 power/channel status and basic length-counter expiry so software can poll channel state, but it does not synthesize square, wave or noise audio, envelopes, sweeps, mixing or output. The build remains silent.
+5. **Audio is an initial synthesizer, not yet hardware-accurate.** Square, wave and noise channels, basic volume envelopes and NR50/NR51 stereo mixing are synthesized at 32768 Hz. Windows uses WaveOut playback. The portable Linux headless build can export PCM as a WAV file with `--audio-wav`. Channel 1 frequency sweep, analog filtering, exact envelope/trigger timing, and per-dot APU edge behavior still need validation.
 6. **Battery-backed SRAM is mapped in memory but is not yet persisted to `.sav` files.** Power-cycle save persistence and save-file compatibility remain future work.
 7. **Linked-game password/data flow and cross-game integration have not been validated.**
 8. **The Windows D3D11 frontend has not been compiled on this Linux build host.** The portable GameRunner and native generated-code path are verified here, but the user's MSVC 2026 run remains necessary to verify the Windows UI, D3D device creation and selected physical GPU.
@@ -181,7 +205,7 @@ These checks verify the independently implemented execution/rendering pipeline. 
 
 1. Verify the Windows D3D11 window and first real frames with the two retail ROMs; fix boot/runtime errors revealed by the PC.
 2. Refine DMA edge cases and implement timed OAM DMA.
-3. Implement APU waveform generation, mixing/output and persistent battery-backed SRAM.
+3. Refine APU sweep/envelope timing and audio filtering; implement persistent battery-backed SRAM.
 4. Replace approximate scanline rendering with a dot/FIFO-oriented PPU and validate using hardware test ROMs.
 5. Improve static code discovery, RAM execution and computed-jump handling.
 6. Validate title screens, file select, overworld, dungeons, transitions, saves and linked-game behavior for both games.
